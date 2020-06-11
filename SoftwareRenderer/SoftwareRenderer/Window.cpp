@@ -12,7 +12,7 @@ using namespace Gdiplus;
 #pragma comment (lib, "Gdiplus.lib")
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-VOID OnPaint(const HWND hwnd, const HDC hdc, const Window* window);
+VOID OnPaint(const HWND hwnd, const HDC hdc, Window* window);
 
 
 
@@ -106,7 +106,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_SIZE:
-		window->SetSize(LOWORD(lParam), HIWORD(lParam));
+		window->SetSize(GetDC(hWnd), LOWORD(lParam), HIWORD(lParam));
 		return 0;
 
 	case WM_TIMER:
@@ -147,75 +147,41 @@ unsigned inline toBitmapPixel(char red, char green, char blue, char alpha)
 
 
 
-VOID OnPaint(const HWND hwnd, const HDC hdc, const Window* window)
+VOID OnPaint(const HWND hwnd, const HDC hdc, Window* window)
 {
+	window->GetDoubleBuffer().ClearBuffer(WHITE_BRUSH);
 
+	auto* pixels = window->GetDoubleBuffer().GetPixelBuffer();
+	{
+		int height = window->GetHeight();
+		int width = window->GetWidth();
+		int length = height * width;
+		float totalTime = window->GetTimer().GetTotalTime();
+		for (int i = 0; i < length; i++)
+		{
+			int x = i % width;
+			int y = i / width;
+			if ((float)x / width > (sin(totalTime) + 1) / 2.0)
+			{
+				pixels[y * width + x] = toBitmapPixel(255, 0, 0, 255);
+			}
+			else
+			{
+				pixels[y * width + x] = toBitmapPixel(255, 255, 255, 255);
+			}
+		}
+	}
 
-	Graphics graphics(hdc);
-
-	HDC hdcBuffer = CreateCompatibleDC(hdc);
-	HBITMAP bitmapBuffer = CreateCompatibleBitmap(hdc, window->GetWidth(), window->GetHeight());
-	HBITMAP bitmapBufferOld = (HBITMAP)SelectObject(hdcBuffer, bitmapBuffer);
-	//DeleteDC(hdcBuffer);
-	//DeleteObject(bitmapBuffer);
-
-	//FillRect(hdcBuffer, &rect, (HBRUSH)GetStockObject(WHITE_BRUSH));
-	//BitBlt(hdc, -rect.left, -rect.top, window->GetWidth(), window->GetHeight(), hdcBuffer, 0, 0, SRCCOPY);
-	//SelectObject(hdcBuffer, bitmapBufferOld);
-	//DeleteDC(hdcBuffer);
-	//DeleteObject(bitmapBuffer);
-
-
-
-	//Gdiplus::Bitmap bitmap(window->GetWidth(), window->GetHeight(), PixelFormat32bppARGB);
-	//auto* bitmapData = new Gdiplus::BitmapData;
-	//Rect bitmapRect(0, 0, window->GetWidth(), window->GetHeight());
-	//bitmap.LockBits(&bitmapRect, Gdiplus::ImageLockModeWrite, PixelFormat32bppARGB, bitmapData);
-	//auto* pixels = static_cast<unsigned*>(bitmapData->Scan0);
-	//{
-	//	int height = window->GetHeight();
-	//	int width = window->GetWidth();
-	//	int length = height * width;
-	//	float totalTime = window->GetTimer().GetTotalTime();
-	//	for (int i = 0; i < length; i++)
-	//	{
-	//		int x = i % width;
-	//		int y = i / width;
-	//		//if ((float)x / width > (sin(totalTime) + 1) / 2.0)
-	//		//{
-	//			pixels[y * width + x] = toBitmapPixel(255, 0, 0, 255);
-	//		//}
-	//	}
-	//}
-	//bitmap.UnlockBits(bitmapData);
-
-	//graphics.DrawImage(&bitmap, 0, 0);
+	window->GetDoubleBuffer().WriteBuffer();
 
 	RECT fullRect;
 	fullRect.left = 0;
 	fullRect.top = 0;
 	fullRect.right = window->GetWidth();
 	fullRect.bottom = window->GetHeight();
-	FillRect(hdcBuffer, &fullRect, (HBRUSH)GetStockObject(WHITE_BRUSH));
-	Graphics bufferGrapics(hdcBuffer);
-	//bufferGrapics.DrawImage(&bitmap, 0, 0);
+
 	std::string text = std::to_string(window->GetTimer().GetDeltaTime());
-	DrawTextA(hdcBuffer, text.c_str(), text.length(), &fullRect, DT_LEFT | DT_TOP);
-	BitBlt(hdc, 0, 0, window->GetWidth(), window->GetHeight(), hdcBuffer, 0, 0, SRCCOPY);
-	SelectObject(hdcBuffer, bitmapBufferOld);
+	DrawTextA(window->GetDoubleBuffer().GetNextFrame(), text.c_str(), text.length(), &fullRect, DT_LEFT | DT_TOP);
 
-
-
-
-	//for (int x = 0; x < window->GetWidth(); x++)
-	//{
-	//    for (int y = 0; y < window->GetHeight(); y++)
-	//    {
-	//        if ((float)x / window->GetWidth() > (sin(window->GetTimer().GetDeltaTime()) + 1) / 2.0)
-	//        {
-	//            SetPixel(hdc, x, y, RGB(255, 0, 0));
-	//        }
-	//    }
-	//}
-
+	BitBlt(hdc, 0, 0, window->GetWidth(), window->GetHeight(), window->GetDoubleBuffer().GetNextFrame(), 0, 0, SRCCOPY);
 }

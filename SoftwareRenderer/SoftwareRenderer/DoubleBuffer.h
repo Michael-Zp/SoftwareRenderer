@@ -6,43 +6,67 @@
 class BitmapBuffer
 {
 public:
-	struct PixelBuffer
-	{
-		unsigned* pixels;
-		int stride;
-	};
 
-	void UpdateSize(WORD width, WORD height)
+	BitmapBuffer(HDC hdc, WORD width, WORD height) : width(width), height(height)
 	{
-		this->width = width;
-		this->height = height;
+		hdcBuffer = CreateCompatibleDC(hdc);
+		bitmapBuffer = CreateCompatibleBitmap(hdc, width, height);
+		bitmapBufferOld = (HBITMAP)SelectObject(hdcBuffer, bitmapBuffer);
 
+		buffer = new Gdiplus::Bitmap(width, height, PixelFormat32bppARGB);
+		bitmapData = new Gdiplus::BitmapData;
 		bitmapRect = Gdiplus::Rect(0, 0, width, height);
 
-		delete buffer;
-		buffer = new Gdiplus::Bitmap(width, height, PixelFormat32bppARGB);
+		bufferGrapics = new Gdiplus::Graphics(hdcBuffer);
+
+		fullRect.left = 0;
+		fullRect.top = 0;
+		fullRect.right = width;
+		fullRect.bottom = height;
 	}
 
-	PixelBuffer GetPixelBuffer()
+	~BitmapBuffer()
 	{
-		bitmapData = new Gdiplus::BitmapData;
-		Gdiplus::Rect bitmapRect(0, 0, width, height);
+		delete bufferGrapics;
+		delete buffer;
+		DeleteDC(hdcBuffer);
+		DeleteObject(bitmapBuffer);
+		DeleteObject(bitmapBufferOld);
+	}
+
+	unsigned* GetPixelBuffer()
+	{
 		buffer->LockBits(&bitmapRect, Gdiplus::ImageLockModeWrite, PixelFormat32bppARGB, bitmapData);
 
-		return { static_cast<unsigned*>(bitmapData->Scan0), abs(bitmapData->Stride) };
+		return static_cast<unsigned*>(bitmapData->Scan0);
+	}
+
+	void ClearBuffer(HBRUSH brush)
+	{
+		FillRect(hdcBuffer, &fullRect, (HBRUSH)GetStockObject(WHITE_BRUSH));
 	}
 
 	void WriteBuffer()
 	{
 		buffer->UnlockBits(bitmapData);
+
+		bufferGrapics->DrawImage(buffer, 0, 0);
 	}
 
-	Gdiplus::Bitmap* GetNextFrame() { return buffer; };
+	HDC GetNextFrame() { return hdcBuffer; };
 
 private:
-	Gdiplus::Bitmap* buffer;
 	int width = 0;
 	int height = 0;
+
+	HDC hdcBuffer;
+	HBITMAP bitmapBuffer;
+	HBITMAP bitmapBufferOld;
+
+	RECT fullRect;
+
+	Gdiplus::Bitmap* buffer;
 	Gdiplus::BitmapData* bitmapData;
 	Gdiplus::Rect bitmapRect;
+	Gdiplus::Graphics* bufferGrapics;
 };
